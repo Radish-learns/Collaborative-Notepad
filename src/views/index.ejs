@@ -2,197 +2,101 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Collaborative Notepad</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-    <!-- Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-
-    <!-- Stylesheet -->
+    <link rel="stylesheet" href="/css/critical.css">
     <link rel="stylesheet" href="/css/style.css">
-
-    <!-- Socket.IO -->
-    <script type="module">
-        import { io } from "https://cdn.socket.io/4.7.4/socket.io.esm.min.js";
-        window.io = io;
-    </script>
+    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body class="light-mode">
-    <header>
-        <div class="header-content">
-            <div class="logo">
-                <i class="fas fa-edit"></i>
-                <h1>Collaborative Notepad</h1>
-            </div>
-            <div class="controls">
-                <div class="url-control">
-                    <input type="text" id="customUrl" placeholder="Enter custom URL" />
-                    <button id="setCustomUrl"><i class="fas fa-link"></i> Set URL</button>
-                    <button id="copyLink" title="Copy note link"><i class="fas fa-copy"></i></button>
-                </div>
-                <div class="action-buttons">
-                    <div class="status-indicator">
-                        <div class="status-dot"></div>
-                        <span id="userCount">1</span>
-                    </div>
-                    <button id="newNoteBtn"><i class="fas fa-plus"></i> New Note</button>
-                    <button id="themeToggle"><i class="fas fa-moon"></i></button>
-                </div>
-            </div>
-        </div>
-    </header>
 
-    <div class="container">
-        <!-- Toolbar for text formatting -->
-        <div id="toolbar" class="toolbar">
-            <button onclick="formatText('bold')"><b>B</b></button>
-            <button onclick="formatText('italic')"><i>I</i></button>
-            <button onclick="formatText('underline')"><u>U</u></button>
-            <button onclick="formatText('hiliteColor', 'yellow')">🟨</button>
-            <button onclick="removeFormatting()">❌</button>
+<header>
+    <div class="header-content">
+        <div class="logo">
+            <i class="fa fa-edit"></i>
+            <h1>Collaborative Notepad</h1>
         </div>
+        <div class="controls">
+            <div class="url-control">
+                <input type="text" id="noteUrl" placeholder="Enter note URL">
+                <button id="joinNote">Join</button>
+            </div>
+            <button id="themeToggle">🌙</button>
+        </div>
+    </div>
+</header>
 
-        <!-- Editable note area -->
-        <div id="notepad" contenteditable="true" spellcheck="false"><%- note.content %></div>
+<div class="container">
+    <!-- Formatting toolbar -->
+    <div id="toolbar">
+        <button onclick="formatText('bold')"><b>B</b></button>
+        <button onclick="formatText('italic')"><i>I</i></button>
+        <button onclick="formatText('underline')"><u>U</u></button>
+        <button onclick="formatText('hiliteColor', 'yellow')">🟨</button>
+        <button onclick="removeFormatting()">❌</button>
     </div>
 
-    <footer>
-        <div class="footer-content">
-            <div class="copyright">
-                © 2025 | made in ceylon with ❤️ by sh13y
-            </div>
-            <div class="footer-links">
-                <a href="http://paypal.me/shieyz" target="_blank">
-                    <i class="fab fa-paypal"></i> Back Pain Relief Fund 🪑🤕
-                </a>
-            </div>
+    <!-- Editable note -->
+    <div id="notepad" contenteditable="true"></div>
+</div>
+
+<footer>
+    <div class="footer-content">
+        <div class="footer-links">
+            <span>Active Users: <span id="userCount">0</span></span>
         </div>
-    </footer>
+    </div>
+</footer>
 
-    <!-- Socket.IO -->
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
-    <script>
-        // Initialize Socket.IO
-        const socket = io({
-            transports: ['websocket'],
-            upgrade: false,
-            reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000
-        });
+<script>
+const socket = io();
 
-        socket.on('connect', () => console.log('Connected:', socket.id));
-        socket.on('connect_error', (err) => console.error('Socket connection error:', err));
+// Join a note
+document.getElementById('joinNote').addEventListener('click', () => {
+    const url = document.getElementById('noteUrl').value.trim();
+    if (!url) return alert('Enter a note URL!');
+    socket.emit('joinNote', url);
+});
 
-        // DOM Elements
-        const notepad = document.getElementById('notepad');
-        const url = window.location.pathname.split('/').pop();
-        let typingTimeout;
-        let lastContent = '';
+// Real-time note updates
+const notepad = document.getElementById('notepad');
+notepad.addEventListener('input', () => {
+    socket.emit('updateNote', {
+        url: document.getElementById('noteUrl').value.trim(),
+        content: notepad.innerHTML
+    });
+});
 
-        // Join the note room
-        socket.emit('joinNote', url);
+// Load note content
+socket.on('loadNote', (note) => {
+    notepad.innerHTML = note.content || '';
+});
 
-        // Load note content
-        socket.on('loadNote', (note) => notepad.innerHTML = note.content);
+// Update from other users
+socket.on('noteUpdated', (content) => {
+    notepad.innerHTML = content;
+});
 
-        // Update note from other users
-        socket.on('noteUpdated', (content) => {
-            if (notepad.innerHTML !== content) notepad.innerHTML = content;
-        });
+// Update active users
+socket.on('userCount', (count) => {
+    document.getElementById('userCount').innerText = count;
+});
 
-        // Update user count
-        socket.on('userCount', (count) => {
-            const userCountElement = document.getElementById('userCount');
-            const statusDot = document.querySelector('.status-dot');
-            userCountElement.textContent = count;
+// Formatting functions
+function formatText(command, value=null){
+    document.execCommand(command, false, value);
+}
 
-            if (count > 1) {
-                statusDot.style.animationDuration = '1s';
-            } else {
-                statusDot.style.animationDuration = '2s';
-            }
-        });
+function removeFormatting() {
+    document.execCommand('removeFormat', false, null);
+}
 
-        // Debounce input events
-        function debounce(func, delay) {
-            return function(...args) {
-                clearTimeout(typingTimeout);
-                typingTimeout = setTimeout(() => func.apply(this, args), delay);
-            };
-        }
+// Theme toggle
+document.getElementById('themeToggle').addEventListener('click', () => {
+    document.body.classList.toggle('dark-mode');
+    document.body.classList.toggle('light-mode');
+});
+</script>
 
-        // Send note updates
-        notepad.addEventListener('input', debounce(() => {
-            const content = notepad.innerHTML;
-            if (content !== lastContent) {
-                lastContent = content;
-                socket.emit('updateNote', { url, content });
-            }
-        }, 500));
-
-        // Text formatting
-        function formatText(command, value = null) {
-            document.execCommand(command, false, value);
-            notepad.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-
-        function removeFormatting() {
-            document.execCommand('removeFormat');
-            notepad.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-
-        // New note button
-        document.getElementById('newNoteBtn').addEventListener('click', () => window.location.href = '/new');
-
-        // Set custom URL
-        document.getElementById('setCustomUrl').addEventListener('click', async () => {
-            const customUrl = document.getElementById('customUrl').value.trim();
-            if (!customUrl || customUrl === url) return alert("Enter a different URL.");
-
-            const response = await fetch(`/setCustomUrl/${url}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: customUrl })
-            });
-            const result = await response.json();
-            if (result.success) window.location.href = `/${customUrl}`;
-            else alert(result.message);
-        });
-
-        // Theme toggle
-        document.getElementById('themeToggle').addEventListener('click', () => {
-            const body = document.body;
-            const icon = document.querySelector('#themeToggle i');
-            if (body.classList.contains('light-mode')) {
-                body.classList.replace('light-mode', 'dark-mode');
-                icon.classList.replace('fa-moon', 'fa-sun');
-                localStorage.setItem('theme', 'dark-mode');
-            } else {
-                body.classList.replace('dark-mode', 'light-mode');
-                icon.classList.replace('fa-sun', 'fa-moon');
-                localStorage.setItem('theme', 'light-mode');
-            }
-        });
-
-        // Apply saved theme
-        window.onload = () => {
-            const savedTheme = localStorage.getItem('theme');
-            if (savedTheme) document.body.classList.add(savedTheme);
-        };
-
-        // Copy note link
-        document.getElementById('copyLink').addEventListener('click', async () => {
-            try {
-                await navigator.clipboard.writeText(window.location.href);
-                const icon = document.querySelector('#copyLink i');
-                icon.classList.replace('fa-copy', 'fa-check');
-                setTimeout(() => icon.classList.replace('fa-check', 'fa-copy'), 2000);
-            } catch {
-                alert('Failed to copy link.');
-            }
-        });
-    </script>
 </body>
 </html>
