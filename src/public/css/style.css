@@ -452,3 +452,54 @@ footer {
         font-size: 0.85rem;
     }
 } 
+
+/* Toolbar styling */
+#toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 6px 10px;
+    background-color: var(--eggshell);
+    border: 1px solid var(--cambridge-blue);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    box-shadow: var(--shadow);
+    align-items: center;
+    justify-content: flex-start;
+}
+
+#toolbar button {
+    background: var(--burnt-sienna);
+    color: var(--eggshell);
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+#toolbar button:hover {
+    background: var(--sunset);
+    color: var(--delft-blue);
+}
+
+/* Editable note area */
+#notepad {
+    width: 100%;
+    height: 500px;
+    padding: 1rem;
+    border-radius: 12px;
+    border: 2px solid var(--cambridge-blue);
+    background-color: white;
+    color: var(--delft-blue);
+    overflow-y: auto;
+    box-shadow: var(--shadow);
+    font-family: 'Fira Code', monospace;
+    line-height: 1.5;
+}
+
+body.dark-mode #notepad {
+    background-color: var(--delft-blue);
+    color: var(--eggshell);
+}
