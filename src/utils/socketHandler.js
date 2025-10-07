@@ -1,96 +1,102 @@
-const Note = require('../models/Note');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Notepad</title>
+    <link rel="stylesheet" href="/css/critical.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="light-mode">
 
-const setupSocket = (io) => {
-    // Track room sizes
-    const getRoomSize = (room) => {
-        const roomData = io.sockets.adapter.rooms.get(room);
-        return roomData ? roomData.size : 0;
-    };
+<header>
+    <div class="header-content">
+        <div class="logo">
+            <i class="fa fa-edit"></i>
+            <h1>Collaborative Notepad</h1>
+        </div>
+        <div class="controls">
+            <div class="url-control">
+                <input type="text" id="noteUrl" placeholder="Enter note URL">
+                <button id="joinNote">Join</button>
+            </div>
+            <button id="themeToggle">🌙</button>
+        </div>
+    </div>
+</header>
 
-    // Function to broadcast admin stats
-    const broadcastAdminStats = () => {
-        const rooms = io.sockets.adapter.rooms;
-        const activeNotes = Array.from(rooms.keys())
-            .filter(room => !room.startsWith('/'))
-            .length;
-            
-        io.emit('adminStats', {
-            activeNotes
-        });
-    };
+<div class="container">
+    <!-- Formatting toolbar -->
+    <div id="toolbar">
+        <button onclick="formatText('bold')"><b>B</b></button>
+        <button onclick="formatText('italic')"><i>I</i></button>
+        <button onclick="formatText('underline')"><u>U</u></button>
+        <button onclick="formatText('hiliteColor', 'yellow')">🟨</button>
+        <button onclick="removeFormatting()">❌</button>
+    </div>
 
-    io.on('connection', async (socket) => {
-        console.log('Client connected:', socket.id);
-        let currentNoteUrl = null;
+    <!-- Editable note -->
+    <div id="notepad" contenteditable="true"></div>
+</div>
 
-        socket.on('joinNote', async (url) => {
-            try {
-                currentNoteUrl = url;
-                socket.join(url);
+<footer>
+    <div class="footer-content">
+        <div class="footer-links">
+            <span>Active Users: <span id="userCount">0</span></span>
+        </div>
+    </div>
+</footer>
 
-                // Get note content from MongoDB
-                const note = await Note.findOne({ url });
-                if (note) {
-                    // Send initial note content to the joining client
-                    socket.emit('loadNote', note);
-                    
-                    // Get real-time count of users in the room
-                    const userCount = getRoomSize(url);
-                    
-                    // Broadcast updated user count to all clients in this note
-                    io.to(url).emit('userCount', userCount);
-                }
-                
-                // Broadcast updated stats to admin
-                broadcastAdminStats();
-            } catch (error) {
-                console.error('Error handling join:', error);
-                socket.emit('error', 'Failed to join note');
-            }
-        });
+<script>
+const socket = io();
 
-        socket.on('updateNote', async (data) => {
-            try {
-                // Sanitize HTML before broadcasting or saving
-                const cleanContent = sanitizeHtml(data.content, {
-                    allowedTags: ['b', 'i', 'u', 'mark', 'span', 'font', 'div', 'br'],
-                    allowedAttributes: {
-                        span: ['style'],
-                        font: ['face', 'color', 'size']
-                    }
-                });
+// Join a note
+document.getElementById('joinNote').addEventListener('click', () => {
+    const url = document.getElementById('noteUrl').value.trim();
+    if (!url) return alert('Enter a note URL!');
+    socket.emit('joinNote', url);
+});
 
-                // Broadcast to all other clients
-                socket.to(data.url).emit('noteUpdated', cleanContent);
-
-                // Save sanitized content to DB
-                await Note.findOneAndUpdate(
-                    { url: data.url },
-                    { content: cleanContent },
-                    { new: true }
-                );
-            } catch (error) {
-                console.error('Error updating note:', error);
-                socket.emit('error', 'Failed to update note');
-            }
-        });
-
-
-        socket.on('disconnect', () => {
-            if (currentNoteUrl) {
-                const userCount = getRoomSize(currentNoteUrl);
-                io.to(currentNoteUrl).emit('userCount', userCount);
-            }
-            // Broadcast updated stats to admin after disconnect
-            broadcastAdminStats();
-            console.log('Client disconnected:', socket.id);
-        });
-
-        // Error handling
-        socket.on('error', (error) => {
-            console.error('Socket error:', error);
-        });
+// Real-time note updates
+const notepad = document.getElementById('notepad');
+notepad.addEventListener('input', () => {
+    socket.emit('updateNote', {
+        url: document.getElementById('noteUrl').value.trim(),
+        content: notepad.innerHTML
     });
-};
+});
 
-module.exports = setupSocket; 
+// Load note content
+socket.on('loadNote', (note) => {
+    notepad.innerHTML = note.content || '';
+});
+
+// Update from other users
+socket.on('noteUpdated', (content) => {
+    notepad.innerHTML = content;
+});
+
+// Update active users
+socket.on('userCount', (count) => {
+    document.getElementById('userCount').innerText = count;
+});
+
+// Formatting functions
+function formatText(command, value=null){
+    document.execCommand(command, false, value);
+}
+
+function removeFormatting() {
+    document.execCommand('removeFormat', false, null);
+}
+
+// Theme toggle
+document.getElementById('themeToggle').addEventListener('click', () => {
+    document.body.classList.toggle('dark-mode');
+    document.body.classList.toggle('light-mode');
+});
+</script>
+
+</body>
+</html>
