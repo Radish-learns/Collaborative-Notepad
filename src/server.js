@@ -219,9 +219,10 @@ app.use((err, req, res, next) => {
 });
 
 // Setup WebSocket
-setupSocket.setupSocket(io);
+// setupSocket.setupSocket(io);
 
-setupSocket.addNotesToDatabase()
+// setupSocket.addNotesToDatabase()
+setupSocket(io);
 // Start automatic cleanup service
 cleanupService.start();
 
